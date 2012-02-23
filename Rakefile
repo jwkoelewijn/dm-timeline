@@ -1,8 +1,9 @@
 require 'rubygems'
-require 'spec'
+require 'rspec/core'
+require 'rspec/core/rake_task'
 require 'rake/clean'
-require 'rake/gempackagetask'
-require 'spec/rake/spectask'
+require 'rubygems/package_task'
+require 'rake/tasklib'
 require 'pathname'
  
 CLEAN.include '{log,pkg}/'
@@ -15,12 +16,12 @@ spec = Gem::Specification.new do |s|
   s.extra_rdoc_files = %w[ README LICENSE TODO ]
   s.summary          = 'DataMapper plugin providing temporal object behavior'
   s.description      = s.summary
-  s.author           = 'Dirkjan Bussink'
-  s.email            = 'd.bussink@gmail.com'
+  s.authors          = ['Dirkjan Bussink', 'J.W. Koelewijn']
+  s.email            = ['d.bussink@gmail.com', 'janwillem.koelewijn@nedap.com']
   s.homepage         = 'http://github.com/dbussink/dm-timeline'
   s.require_path     = 'lib'
   s.files            = FileList[ '{lib,spec}/**/*.rb', 'spec/spec.opts', 'Rakefile', *s.extra_rdoc_files ]
-  s.add_dependency('dm-core', ">=0.9.1")
+  s.add_dependency('dm-core', ">=1.3.0")
 end
  
 task :default => [ :spec ]
@@ -28,7 +29,7 @@ task :default => [ :spec ]
 WIN32 = (RUBY_PLATFORM =~ /win32|mingw|cygwin/) rescue nil
 SUDO  = WIN32 ? '' : ('sudo' unless ENV['SUDOLESS'])
  
-Rake::GemPackageTask.new(spec) do |pkg|
+Gem::PackageTask.new(spec) do |pkg|
   pkg.gem_spec = spec
 end
  
@@ -38,7 +39,7 @@ task :install => [ :package ] do
 end
  
 desc 'Run specifications'
-Spec::Rake::SpecTask.new(:spec) do |t|
-  t.spec_opts << '--options' << 'spec/spec.opts' if File.exists?('spec/spec.opts')
-  t.spec_files = Pathname.glob(Pathname.new(__FILE__).dirname + 'spec/**/*_spec.rb')
+RSpec::Core::RakeTask.new(:rspec) do |t|
+  t.rspec_opts = 'spec/spec.opts' if File.exists?('spec/spec.opts')
+  t.pattern = 'spec/**/*_spec.rb'
 end

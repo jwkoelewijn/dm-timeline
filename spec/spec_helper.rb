@@ -1,10 +1,9 @@
 require 'rubygems'
-require 'pathname'
 
-gem 'dm-core', '>=0.9.2'
+gem 'dm-core', '>=1.2.0'
 require 'dm-core'
 
-spec_dir_path = Pathname(__FILE__).dirname.expand_path
+spec_dir_path = File.dirname(__FILE__)
 
 def load_driver(name, default_uri)
   return false if ENV['ADAPTER'] != name.to_s
@@ -29,12 +28,12 @@ end
  
 ENV['ADAPTER'] ||= 'sqlite3'
 
-LOG_PATH     = Pathname(__FILE__).dirname.expand_path.to_s + '/sql.log'
+LOG_PATH     = File.join(File.dirname(__FILE__), '/sql.log')
 HAS_SQLITE3  = load_driver(:sqlite3,  'sqlite3::memory:')
 HAS_MYSQL    = load_driver(:mysql,    'mysql://localhost/dm_core_test')
 HAS_POSTGRES = load_driver(:postgres, 'postgres://postgres@localhost/dm_core_test')
 
-require spec_dir_path.parent + 'lib/dm-timeline'
+require File.join(spec_dir_path, '..', 'lib/dm-timeline')
 
 Dir[spec_dir_path + "fixtures/*.rb"].each do |fixture_file|
   require fixture_file
