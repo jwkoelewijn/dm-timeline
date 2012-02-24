@@ -32,10 +32,12 @@ module DataMapper
           self.valid_to   = (at.last || self.class.repository.adapter.class::END_OF_TIME) if at.length > 1
         end
         super
+
+        self.register_at_timeline_observables
       end
 
       def save(options = {} )
-        @original_timeline = [original_values[:valid_from] || (new_record? ? nil : valid_from), original_values[:valid_to] || (new_record? ? nil : valid_to)]
+        @original_timeline = [original_values[:valid_from] || (new? ? nil : valid_from), original_values[:valid_to] || (new? ? nil : valid_to)]
 
         if options.is_a?(Hash) && times = options.delete(:at)
           self.valid_from = times.first
@@ -151,6 +153,57 @@ module DataMapper
           end
         end
       end
+
+      def crop_timeline(parent)
+        if valid_from >= parent.valid_to || valid_to <= parent.valid_from
+          self.destroy
+        elsif valid_from < parent.valid_from || valid_to > parent.valid_to
+          self.valid_from = [self.valid_from, parent.valid_from].max
+          self.valid_to   = [self.valid_to, parent.valid_to].min
+        elsif self.has_sticky_timeline? && (
+              (valid_to == parent.original_to && valid_to < parent.valid_to) ||
+              (valid_from == parent.original_from && valid_from > parent.valid_from))
+          self.valid_from = [self.valid_from, parent.valid_from].min
+          self.valid_to   = [self.valid_to, parent.valid_to].max
+        end
+      end
+
+      # This is who are observing this timelined resource
+      def timeline_observers
+         @timeline_observers ||= []
+      end
+
+      def register_at_timeline_observables
+        self.class.timeline_observables.each do |observable|
+          send(observable).register_observer(self)
+        end
+      end
+
+      def unregister_observer(observer)
+        timeline_observers.delete(observer)
+      end
+
+      def register_observer(observer)
+        timeline_observers << observer unless timeline_observers.include?(observer)
+      end
+
+      def determine_notifications
+        @should_notify_observers = (original_values.keys.include?(:valid_from) || original_values.keys.include?(:valid_to))
+      end
+
+      def notify_observers
+        timeline_observers.each do |observer|
+          observer.notify_timeline_change(self) if observer.respond_to?(:notify_timeline_change)
+        end if @should_notify_observers
+      end
+
+      def notify_timeline_change(observable)
+        crop_timeline(observable)
+      end
+
+      def has_sticky_timeline?
+        self.class.has_sticky_timeline?
+      end
     end
 
     module ClassMethods
@@ -176,7 +229,26 @@ module DataMapper
         end
       end
 
-      def is_on_timeline
+      # This is what the current timelined resource observes
+      def timeline_observables
+        @timeline_observables ||= []
+      end
+
+      def create_before_filter(observable)
+        class_eval <<-EOS, __FILE__, __LINE__
+          before "#{observable}=".to_sym do |param|
+            observable = send(:#{observable})
+            observable.unregister_observer(self) if observable
+            param.register_observer(self)
+          end
+        EOS
+      end
+
+      def has_sticky_timeline?
+        @sticky_timeline
+      end
+
+      def is_on_timeline(options = {})
 
         property :valid_from, Date, :default => lambda { Date.today }, :auto_validation => false
         property :valid_to,   Date, :default => repository.adapter.class::END_OF_TIME, :auto_validation => false
@@ -192,40 +264,60 @@ module DataMapper
         validates_with_method :valid_to, :method => :valid_to_should_make_sense
 
         before :valid_from= do |param|
-          if param.kind_of?(Hash) && param.has_key?(:date)
-            if param[:date].blank? || param[:date].nil?
-              self.valid_from = self.class.repository.adapter.class::START_OF_TIME
-            else
-              date = Timeline::Util.format_date_string(param[:date])
-              self.valid_from = date #param[:date]
+          unless param.kind_of?(Date)
+            if param.kind_of?(Hash) && param.has_key?(:date)
+              if param[:date].blank? || param[:date].nil?
+                self.valid_from = self.class.repository.adapter.class::START_OF_TIME
+              else
+                date = Timeline::Util.format_date_string(param[:date])
+                self.valid_from = date #param[:date]
+              end
+              throw :halt
+            elsif param.is_a?(String)
+              param = Timeline::Util.format_date_string(param)
+              attribute_set(:valid_from, param)
+              throw :halt
+            elsif param.blank? || param.nil?
+              attribute_set(:valid_from, Date.today)
+              throw :halt
             end
-            throw :halt
-          elsif param.is_a?(String)
-            param = Timeline::Util.format_date_string(param)
-            attribute_set(:valid_from, param)
-            throw :halt
-          elsif param.blank? || param.nil?
-            attribute_set(:valid_from, Date.today)
-            throw :halt
           end
         end
 
         before :valid_to= do |param|
-          if param.kind_of?(Hash) && param.has_key?(:date)
-            if param[:date].blank? || param[:date].nil?
-              self.valid_to = self.class.repository.adapter.class::END_OF_TIME
-            else
-              self.valid_to = Timeline::Util.format_date_string(param[:date])
+          unless param.kind_of?(Date)
+            if param.kind_of?(Hash) && param.has_key?(:date)
+              if param[:date].blank? || param[:date].nil?
+                self.valid_to = self.class.repository.adapter.class::END_OF_TIME
+              else
+                self.valid_to = Timeline::Util.format_date_string(param[:date])
+              end
+              throw :halt
+            elsif param.is_a?(String)
+              param = Timeline::Util.format_date_string(param)
+              attribute_set(:valid_to, param)
+              throw :halt
+            elsif param.blank? || param.nil?
+              attribute_set(:valid_to, self.class.repository.adapter.class::END_OF_TIME)
+              throw :halt
             end
-            throw :halt
-          elsif param.is_a?(String)
-            param = Timeline::Util.format_date_string(param)
-            attribute_set(:valid_to, param)
-            throw :halt
-          elsif param.blank? || param.nil?
-            attribute_set(:valid_to, self.class.repository.adapter.class::END_OF_TIME)
-            throw :halt
           end
+        end
+
+        before :destroy do
+          self.class.timeline_observables.each do |observable|
+            send(observable).unregister_observer(self)
+          end
+        end
+
+        before :save do
+          self.determine_notifications
+        end
+
+        after :save do
+          self.notify_observers
+          @original_timeline = {}
+          @should_notify_observers = false
         end
 
         class << self
@@ -235,6 +327,20 @@ module DataMapper
           alias_method :first_without_timeline, :first
           alias_method :first, :first_with_timeline
         end
+
+        if options
+          observes = options.delete(:limited_by)
+          unless observes.nil?
+            observes = [observes] unless observes.kind_of?(Enumerable)
+            observes.each do |observable|
+              timeline_observables << observable
+              create_before_filter(observable)
+            end
+
+            @sticky_timeline = options.delete(:sticky) || false
+          end
+        end
+
       end
     end
 
