@@ -10,10 +10,10 @@ CLEAN.include '{log,pkg}/'
  
 spec = Gem::Specification.new do |s|
   s.name             = 'dm-timeline'
-  s.version          = '0.0.1'
+  s.version          = '0.0.2'
   s.platform         = Gem::Platform::RUBY
   s.has_rdoc         = true
-  s.extra_rdoc_files = %w[ README LICENSE TODO ]
+  s.extra_rdoc_files = %w[ README LICENSE ]
   s.summary          = 'DataMapper plugin providing temporal object behavior'
   s.description      = s.summary
   s.authors          = ['Dirkjan Bussink', 'J.W. Koelewijn']
