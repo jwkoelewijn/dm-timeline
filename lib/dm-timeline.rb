@@ -31,8 +31,9 @@ module DataMapper
           self.valid_from = at.first || self.class.repository.adapter.class::START_OF_TIME
           self.valid_to   = (at.last || self.class.repository.adapter.class::END_OF_TIME) if at.length > 1
         end
+        @initializing = true
         super
-
+        @initializing = false
         self.register_at_timeline_observables
       end
 
@@ -111,10 +112,16 @@ module DataMapper
       end
 
       def original_from
+        if original_values && original_values.has_key?(:valid_from)
+          return original_values[:valid_from]
+        end
         @original_timeline ? @original_timeline.first : nil
       end
 
       def original_to
+        if original_values && original_values.has_key?(:valid_to)
+          return original_values[:valid_to]
+        end
         @original_timeline ? @original_timeline.last : nil
       end
 
@@ -166,6 +173,7 @@ module DataMapper
           self.valid_from = [self.valid_from, parent.valid_from].min
           self.valid_to   = [self.valid_to, parent.valid_to].max
         end
+        @should_notify_observers = true
       end
 
       # This is who are observing this timelined resource
@@ -188,7 +196,7 @@ module DataMapper
       end
 
       def determine_notifications
-        @should_notify_observers = (original_values.keys.include?(:valid_from) || original_values.keys.include?(:valid_to))
+        @should_notify_observers ||= (original_values.keys.include?(:valid_from) || original_values.keys.include?(:valid_to))
       end
 
       def notify_observers
@@ -199,6 +207,8 @@ module DataMapper
 
       def notify_timeline_change(observable)
         crop_timeline(observable)
+        self.determine_notifications
+        self.notify_observers
       end
 
       def has_sticky_timeline?
@@ -235,8 +245,10 @@ module DataMapper
       end
 
       def create_before_filter(observable)
+        # The method should not be called as part of the first #attributes= call
         class_eval <<-EOS, __FILE__, __LINE__
           before "#{observable}=".to_sym do |param|
+            return if @initializing
             observable = send(:#{observable})
             observable.unregister_observer(self) if observable
             param.register_observer(self)
@@ -316,7 +328,6 @@ module DataMapper
 
         after :save do
           self.notify_observers
-          @original_timeline = {}
           @should_notify_observers = false
         end
 

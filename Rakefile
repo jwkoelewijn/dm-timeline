@@ -21,7 +21,7 @@ spec = Gem::Specification.new do |s|
   s.homepage         = 'http://github.com/dbussink/dm-timeline'
   s.require_path     = 'lib'
   s.files            = FileList[ '{lib,spec}/**/*.rb', 'spec/spec.opts', 'Rakefile', *s.extra_rdoc_files ]
-  s.add_dependency('dm-core', ">=1.3.0")
+  s.add_dependency('dm-core', ">=1.2.0")
 end
  
 task :default => [ :spec ]

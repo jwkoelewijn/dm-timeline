@@ -32,10 +32,6 @@ describe "DataMapper::Timeline" do
     is_on_timeline
 
     auto_migrate!(:default)
-
-    def inspect
-      "#{self.class.to_s} #{location}"
-    end
   end
 
   context "with respect to non dependent objects" do
@@ -331,5 +327,107 @@ end
         @cow.valid_from.should == Date.today - 5
       end
     end
+  end
+end
+
+describe "DataMapper::Timeline chaining" do
+  class Stable
+    include DataMapper::Resource
+    include DataMapper::Timeline
+  end
+
+  class StickyObservantCow
+    include DataMapper::Resource
+    include DataMapper::Timeline
+  end
+
+  class StickyObservantCalf
+    include DataMapper::Resource
+    include DataMapper::Timeline
+
+    property :id,                       Serial
+    property :name,                     String
+    property :sticky_observant_cow_id,  Integer
+    belongs_to :sticky_observant_cow
+
+    is_on_timeline :limited_by => :sticky_observant_cow, :sticky => true
+
+    auto_migrate!(:default)
+  end
+
+  class ObservantCalf
+    include DataMapper::Resource
+    include DataMapper::Timeline
+
+    property :id,                       Serial
+    property :name,                     String
+    property :sticky_observant_cow_id,  Integer
+    belongs_to :sticky_observant_cow
+
+    is_on_timeline :limited_by => :sticky_observant_cow
+
+    auto_migrate!(:default)
+  end
+
+  class StickyObservantCow
+    include DataMapper::Resource
+    include DataMapper::Timeline
+
+    has n, :sticky_observant_calves
+    property :id,         Serial
+    property :name,       String
+    property :stable_id,  Integer
+    belongs_to :stable
+
+    is_on_timeline :limited_by => :stable, :sticky => true
+
+    auto_migrate!(:default)
+  end
+
+  class Stable
+    has n, :sticky_observant_cows
+
+    property :id,        Serial
+    property :location,  String
+    property :size,      Integer
+
+    is_on_timeline
+
+    auto_migrate!(:default)
+  end
+
+  context "Chaining" do
+    before :each do
+      @stable = Stable.create(:location => "Groenlo", :at => [nil, nil])
+      @cow = StickyObservantCow.create(:stable => @stable, :at => [Date.today - 5, Date.today + 5])
+    end
+
+    it "should be possible to have a chain of dependent resources" do
+
+      calf = ObservantCalf.create(:sticky_observant_cow => @cow, :at => [nil, nil])
+      @stable.valid_from = Date.today - 3
+      @stable.save.should be_true
+
+      calf.valid_from.should == Date.today - 3
+
+      @stable.valid_from = Date.today - 6
+      @stable.save.should be_true
+      calf.valid_from.should == Date.today - 3
+    end
+
+    it "should be possible to have a chain of dependent (sticky) resources" do
+      calf = StickyObservantCalf.create(:sticky_observant_cow => @cow, :at => [Date.today - 4, nil])
+      @stable.valid_from = Date.today - 3
+      @stable.save.should be_true
+
+      calf.valid_from.should == Date.today - 3
+
+      @stable.valid_from = Date.today - 6
+      @stable.save.should be_true
+
+      @cow.valid_from.should == Date.today - 6
+      calf.valid_from.should == Date.today - 6
+    end
+
   end
 end
