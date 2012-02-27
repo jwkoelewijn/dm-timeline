@@ -35,14 +35,7 @@ module DataMapper
         self.register_at_timeline_observables
       end
 
-      def save(options = {})
-        if options.is_a?(Hash) && times = options.delete(:at)
-          self.valid_from = times.first
-          self.valid_to   = times.last
-        end
-
-        options = :default if options.is_a?(Hash)
-
+      def save
         self.valid_from = self.class.repository.adapter.class::START_OF_TIME if self.valid_from.nil? || (self.valid_from.is_a?(String) && self.valid_from.blank?)
         self.valid_to   = self.class.repository.adapter.class::END_OF_TIME   if self.valid_to.nil?   || (self.valid_to.is_a?(String)   && self.valid_to.blank?)
 
