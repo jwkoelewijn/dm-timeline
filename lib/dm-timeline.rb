@@ -35,9 +35,7 @@ module DataMapper
         self.register_at_timeline_observables
       end
 
-      def save(options = {} )
-        @original_timeline = [original_values[:valid_from] || (new? ? nil : valid_from), original_values[:valid_to] || (new? ? nil : valid_to)]
-
+      def save(options = {})
         if options.is_a?(Hash) && times = options.delete(:at)
           self.valid_from = times.first
           self.valid_to   = times.last
@@ -48,7 +46,7 @@ module DataMapper
         self.valid_from = self.class.repository.adapter.class::START_OF_TIME if self.valid_from.nil? || (self.valid_from.is_a?(String) && self.valid_from.blank?)
         self.valid_to   = self.class.repository.adapter.class::END_OF_TIME   if self.valid_to.nil?   || (self.valid_to.is_a?(String)   && self.valid_to.blank?)
 
-        super()
+        super
       end
 
       def valid_on?(moment = Date.today)
@@ -110,17 +108,23 @@ module DataMapper
       end
 
       def original_from
-        if original_values && original_values.has_key?(:valid_from)
-          return original_values[:valid_from]
+        if @changed_attributes && @changed_attributes.has_key?(:valid_from)
+          @changed_attributes[:valid_from]
+        elsif original_values && original_values.has_key?(:valid_from)
+          original_values[:valid_from]
+        else
+          @original_timeline ? @original_timeline.first : nil
         end
-        @original_timeline ? @original_timeline.first : nil
       end
 
       def original_to
-        if original_values && original_values.has_key?(:valid_to)
-          return original_values[:valid_to]
+        if @changed_attributes && @changed_attributes.has_key?(:valid_to)
+          return @changed_attributes[:valid_to]
+        elsif original_values && original_values.has_key?(:valid_to)
+          original_values[:valid_to]
+        else
+          @original_timeline ? @original_timeline.last : nil
         end
-        @original_timeline ? @original_timeline.last : nil
       end
 
       def changed_periods
@@ -259,7 +263,6 @@ module DataMapper
       end
 
       def is_on_timeline(options = {})
-
         property :valid_from, Date, :default => lambda { Date.today }, :auto_validation => false
         property :valid_to,   Date, :default => repository.adapter.class::END_OF_TIME, :auto_validation => false
 
@@ -274,43 +277,39 @@ module DataMapper
         validates_with_method :valid_to, :method => :valid_to_should_make_sense
 
         before :valid_from= do |param|
-          unless param.kind_of?(Date)
-            if param.kind_of?(Hash) && param.has_key?(:date)
-              if param[:date].blank? || param[:date].nil?
-                self.valid_from = self.class.repository.adapter.class::START_OF_TIME
-              else
-                date = Timeline::Util.format_date_string(param[:date])
-                self.valid_from = date #param[:date]
-              end
-              throw :halt
-            elsif param.is_a?(String)
-              param = Timeline::Util.format_date_string(param)
-              attribute_set(:valid_from, param)
-              throw :halt
-            elsif param.blank? || param.nil?
-              attribute_set(:valid_from, Date.today)
-              throw :halt
+          if param.kind_of?(Hash) && param[:date]
+            if param[:date].blank?
+              self.valid_from = self.class.repository.adapter.class::START_OF_TIME
+            else
+              date = Timeline::Util.format_date_string(param[:date])
+              self.valid_from = param[:date]
             end
+            throw :halt
+          elsif param.is_a?(String)
+            param = Timeline::Util.format_date_string(param)
+            attribute_set(:valid_from, param)
+            throw :halt
+          elsif param.blank?
+            attribute_set(:valid_from, Date.today)
+            throw :halt
           end
         end
 
         before :valid_to= do |param|
-          unless param.kind_of?(Date)
-            if param.kind_of?(Hash) && param.has_key?(:date)
-              if param[:date].blank? || param[:date].nil?
-                self.valid_to = self.class.repository.adapter.class::END_OF_TIME
-              else
-                self.valid_to = Timeline::Util.format_date_string(param[:date])
-              end
-              throw :halt
-            elsif param.is_a?(String)
-              param = Timeline::Util.format_date_string(param)
-              attribute_set(:valid_to, param)
-              throw :halt
-            elsif param.blank? || param.nil?
-              attribute_set(:valid_to, self.class.repository.adapter.class::END_OF_TIME)
-              throw :halt
+          if param.kind_of?(Hash) && param[:date]
+            if param[:date].blank?
+              self.valid_to = self.class.repository.adapter.class::END_OF_TIME
+            else
+              self.valid_to = Timeline::Util.format_date_string(param[:date])
             end
+            throw :halt
+          elsif param.is_a?(String)
+            param = Timeline::Util.format_date_string(param)
+            attribute_set(:valid_to, param)
+            throw :halt
+          elsif param.blank?
+            attribute_set(:valid_to, self.class.repository.adapter.class::END_OF_TIME)
+            throw :halt
           end
         end
 
@@ -322,11 +321,13 @@ module DataMapper
 
         before :save do
           self.determine_notifications
+          @changed_attributes = original_values
         end
 
         after :save do
           self.notify_observers
           @should_notify_observers = false
+          @changed_attributes = {}
         end
 
         class << self

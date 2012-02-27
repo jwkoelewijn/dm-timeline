@@ -13,3 +13,11 @@ module DataMapper
     end
   end
 end
+
+class Object
+  unless method_defined?(:blank?)
+    def blank?
+      nil? || (respond_to?(:empty?) && empty?)
+    end
+  end
+end
