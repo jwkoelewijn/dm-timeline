@@ -182,7 +182,7 @@ describe "DataMapper::Timeline" do
         cow = ObservantCow.new(:stable => stable)
         stable.valid_from = Date.today + 1
         stable.save.should be_true
-        cow.notification_count.should == 1
+        cow.notification_count.should >= 1
       end
 
       it "an observable resource should notify its observers when only the valid_to is changed" do
@@ -226,6 +226,12 @@ describe "DataMapper::Timeline" do
 
         @cow.valid_from.should == Date.today - 5
         @cow.valid_to.should == Date.today + 5
+      end
+
+      it "should update observers before the validations are run" do
+        @stable.valid_to = Date.today + 1
+        @stable.valid?
+        @cow.valid_to.should == Date.today + 1
       end
 
       it "should automatically adjust the valid_from of a dependent resource when the valid_from of the parent is moved to the future" do

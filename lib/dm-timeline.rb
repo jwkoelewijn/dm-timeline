@@ -101,9 +101,7 @@ module DataMapper
       end
 
       def original_from
-        if @changed_attributes && @changed_attributes.has_key?(:valid_from)
-          @changed_attributes[:valid_from]
-        elsif original_values && original_values.has_key?(:valid_from)
+        if original_values && original_values.has_key?(:valid_from)
           original_values[:valid_from]
         else
           @original_timeline ? @original_timeline.first : nil
@@ -111,9 +109,7 @@ module DataMapper
       end
 
       def original_to
-        if @changed_attributes && @changed_attributes.has_key?(:valid_to)
-          return @changed_attributes[:valid_to]
-        elsif original_values && original_values.has_key?(:valid_to)
+        if original_values && original_values.has_key?(:valid_to)
           original_values[:valid_to]
         else
           @original_timeline ? @original_timeline.last : nil
@@ -168,7 +164,6 @@ module DataMapper
           self.valid_from = [self.valid_from, parent.valid_from].min
           self.valid_to   = [self.valid_to, parent.valid_to].max
         end
-        @should_notify_observers = true
       end
 
       # This is who are observing this timelined resource
@@ -190,19 +185,18 @@ module DataMapper
         timeline_observers << observer unless timeline_observers.include?(observer)
       end
 
-      def determine_notifications
-        @should_notify_observers ||= (original_values.keys.include?(:valid_from) || original_values.keys.include?(:valid_to))
+      def should_notify_observers?
+        (original_values.keys.include?(:valid_from) || original_values.keys.include?(:valid_to))
       end
 
       def notify_observers
         timeline_observers.each do |observer|
           observer.notify_timeline_change(self) if observer.respond_to?(:notify_timeline_change)
-        end if @should_notify_observers
+        end if should_notify_observers?
       end
 
       def notify_timeline_change(observable)
         crop_timeline(observable)
-        self.determine_notifications
         self.notify_observers
       end
 
@@ -312,15 +306,8 @@ module DataMapper
           end
         end
 
-        before :save do
-          self.determine_notifications
-          @changed_attributes = original_values
-        end
-
-        after :save do
+        before :valid? do
           self.notify_observers
-          @should_notify_observers = false
-          @changed_attributes = {}
         end
 
         class << self
