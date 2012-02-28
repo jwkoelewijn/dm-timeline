@@ -42,12 +42,12 @@ describe "DataMapper::Timeline" do
     it "adds three properties for a DataMapper::Timeline object" do
       c = Cow.new
 
-      c.class.properties.map {|p| p.name }.should include(:valid_from)
-      c.class.properties.map {|p| p.name }.should include(:valid_to)
+      c.class.properties.map {|p| p.name }.should include(:timeline_start)
+      c.class.properties.map {|p| p.name }.should include(:timeline_end)
 
-      c.valid_from.should be_instance_of(Date)
-      c.valid_to.should be_instance_of(Date)
-      c.valid_to.should eql(c.class.repository.adapter.class::END_OF_TIME)
+      c.timeline_start.should be_instance_of(Date)
+      c.timeline_end.should be_instance_of(Date)
+      c.timeline_end.should eql(c.class.repository.adapter.class::END_OF_TIME)
     end
 
     it "sets the maximum and minimum DateTime for the different drivers" do

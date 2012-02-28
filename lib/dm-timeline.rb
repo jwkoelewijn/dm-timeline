@@ -26,8 +26,8 @@ module DataMapper
         at = [self.class.repository.adapter.class::START_OF_TIME,
               self.class.repository.adapter.class::END_OF_TIME]   if override && at.nil?
         if at
-          self.valid_from = at.first || self.class.repository.adapter.class::START_OF_TIME
-          self.valid_to   = (at.last || self.class.repository.adapter.class::END_OF_TIME) if at.length > 1
+          self.timeline_start = at.first || self.class.repository.adapter.class::START_OF_TIME
+          self.timeline_end = (at.last || self.class.repository.adapter.class::END_OF_TIME) if at.length > 1
         end
         @initializing = true
         super
@@ -36,18 +36,18 @@ module DataMapper
       end
 
       def save
-        self.valid_from = self.class.repository.adapter.class::START_OF_TIME if self.valid_from.nil? || (self.valid_from.is_a?(String) && self.valid_from.blank?)
-        self.valid_to   = self.class.repository.adapter.class::END_OF_TIME   if self.valid_to.nil?   || (self.valid_to.is_a?(String)   && self.valid_to.blank?)
+        self.timeline_start = self.class.repository.adapter.class::START_OF_TIME if self.timeline_start.nil? || (self.timeline_start.is_a?(String) && self.timeline_start.blank?)
+        self.timeline_end = self.class.repository.adapter.class::END_OF_TIME   if self.timeline_end.nil?   || (self.timeline_end.is_a?(String)   && self.timeline_end.blank?)
 
         super
       end
 
-      def valid_on?(moment = Date.today)
+      def on_timeline_at?(moment = Date.today)
         moment = moment.to_datetime if moment.respond_to?(:to_datetime)
-        valid_from <= moment && valid_to > moment
+        timeline_start <= moment && timeline_end > moment
       end
 
-      def valid_during?(period = [Date.today, Date.today])
+      def on_timeline_during?(period = [Date.today, Date.today])
         unless period.is_a?(Enumerable)
           period = [period]
         end
@@ -56,61 +56,61 @@ module DataMapper
         period_end     = period.last.to_date if period.last.respond_to?(:to_date)
         period_end   ||= self.class.repository.adapter.class::END_OF_TIME
         if period_start == period_end
-          period_start < valid_to && period_start >= valid_from
+          period_start < timeline_end && period_start >= timeline_start
         else
-          period_start < valid_to && period_end > valid_from
+          period_start < timeline_end && period_end > timeline_start
         end
       end
 
       def infinite?
-        if !self.valid_from.is_a?(String) && !self.valid_to.is_a?(String)
-          self.valid_to >= self.class.repository.adapter.class::END_OF_TIME - 1
+        if !timeline_start.is_a?(String) && !timeline_end.is_a?(String)
+          timeline_end >= self.class.repository.adapter.class::END_OF_TIME - 1
         else
           true
         end
       end
 
-      def valid_to_may_not_be_before_valid_from
-        if self.valid_to && self.valid_from.is_a?(Date) &&
-           self.valid_to.is_a?(Date) && self.valid_to < self.valid_from
+      def timeline_end_may_not_be_before_timeline_start
+        if self.timeline_end && self.timeline_start.is_a?(Date) &&
+           self.timeline_end.is_a?(Date) && self.timeline_end < self.timeline_start
           return false, _("End date may not be before begin date.")
         end
         true
       end
 
-      def valid_from_should_make_sense
-        if self.valid_to && valid_from.is_a?(Date) &&
-           valid_from != self.class.repository.adapter.class::START_OF_TIME &&
-           (valid_from < Date.civil(1900, 1, 1) || valid_from >= Date.civil(2100, 1, 1))
+      def timeline_start_should_make_sense
+        if self.timeline_start && timeline_start.is_a?(Date) &&
+           timeline_start != self.class.repository.adapter.class::START_OF_TIME &&
+           (timeline_start < Date.civil(1900, 1, 1) || timeline_start >= Date.civil(2100, 1, 1))
           return false, _("Start date doesn't make sense as a start date.")
         end
         true
       end
 
-      def valid_to_should_make_sense
-        if self.valid_to && valid_to.is_a?(Date) &&
-           valid_to != self.class.repository.adapter.class::END_OF_TIME &&
-           (valid_to < Date.civil(1900, 1, 1) || valid_to >= Date.civil(2100, 1, 1))
+      def timeline_end_should_make_sense
+        if self.timeline_end && timeline_start.is_a?(Date) &&
+           timeline_end != self.class.repository.adapter.class::END_OF_TIME &&
+           (timeline_end < Date.civil(1900, 1, 1) || timeline_end >= Date.civil(2100, 1, 1))
           return false, _("End date doesn't make sense as an end date.")
         end
         true
       end
 
       def timeline
-        Range.new(valid_from, valid_to, true)
+        Range.new(timeline_start, timeline_end, true)
       end
 
       def original_from
-        if original_values && original_values.has_key?(:valid_from)
-          original_values[:valid_from]
+        if original_values && original_values.has_key?(:timeline_start)
+          original_values[:timeline_start]
         else
           @original_timeline ? @original_timeline.first : nil
         end
       end
 
       def original_to
-        if original_values && original_values.has_key?(:valid_to)
-          original_values[:valid_to]
+        if original_values && original_values.has_key?(:timeline_end)
+          original_values[:timeline_end]
         else
           @original_timeline ? @original_timeline.last : nil
         end
@@ -121,20 +121,20 @@ module DataMapper
         periods = []
         if deleted_at.nil? && original_from && original_to
 
-          if valid_from < original_from
-            periods << [valid_from, original_from]
-          elsif valid_from > original_from
-            periods << [original_from, valid_from]
+          if timeline_start < original_from
+            periods << [timeline_start, original_from]
+          elsif timeline_start > original_from
+            periods << [original_from, timeline_start]
           end
 
-          if valid_to < original_to
-            periods << [valid_to, original_to]
-          elsif valid_to > original_to
-            periods << [original_to, valid_to]
+          if timeline_end < original_to
+            periods << [timeline_end, original_to]
+          elsif timeline_end > original_to
+            periods << [original_to, timeline_end]
           end
 
         else
-          periods << [valid_from, valid_to]
+          periods << [timeline_start, timeline_end]
         end
         periods
       end
@@ -153,16 +153,16 @@ module DataMapper
       end
 
       def crop_timeline(parent)
-        if valid_from >= parent.valid_to || valid_to <= parent.valid_from
+        if timeline_start >= parent.timeline_end || timeline_end <= parent.timeline_start
           self.destroy
-        elsif valid_from < parent.valid_from || valid_to > parent.valid_to
-          self.valid_from = [self.valid_from, parent.valid_from].max
-          self.valid_to   = [self.valid_to, parent.valid_to].min
+        elsif timeline_start < parent.timeline_start || timeline_end > parent.timeline_end
+          self.timeline_start = [self.timeline_start, parent.timeline_start].max
+          self.timeline_end   = [self.timeline_end, parent.timeline_end].min
         elsif self.has_sticky_timeline? && (
-              (valid_to == parent.original_to && valid_to < parent.valid_to) ||
-              (valid_from == parent.original_from && valid_from > parent.valid_from))
-          self.valid_from = [self.valid_from, parent.valid_from].min
-          self.valid_to   = [self.valid_to, parent.valid_to].max
+              (timeline_end == parent.original_to && timeline_end < parent.timeline_end) ||
+              (timeline_start == parent.original_from && timeline_start > parent.timeline_start))
+          self.timeline_start = [self.timeline_start, parent.timeline_start].min
+          self.timeline_end   = [self.timeline_end, parent.timeline_end].max
         end
       end
 
@@ -186,7 +186,7 @@ module DataMapper
       end
 
       def should_notify_observers?
-        (original_values.keys.include?(:valid_from) || original_values.keys.include?(:valid_to))
+        (original_values.keys.include?(:timeline_start) || original_values.keys.include?(:timeline_end))
       end
 
       def notify_observers
@@ -202,6 +202,50 @@ module DataMapper
 
       def has_sticky_timeline?
         self.class.has_sticky_timeline?
+      end
+    end
+
+    module HideableInstanceMethods
+      def hidden_from=(param)
+        self.timeline_end = param
+      end
+
+      def hidden_from
+        self.timeline_end
+      end
+
+      def visible_on?(param)
+        self.on_timeline_at?(param)
+      end
+
+      def visible_during?(param)
+        self.on_timeline_during?(param)
+      end
+    end
+
+    module ValidityInstanceMethods
+      def valid_from=(param)
+        self.timeline_start = param
+      end
+
+      def valid_from
+        self.timeline_start
+      end
+
+      def valid_to=(param)
+        self.timeline_end = param
+      end
+
+      def valid_to
+        self.timeline_end
+      end
+
+      def valid_on?(param)
+        self.on_timeline_at?(param)
+      end
+
+      def valid_during?(param)
+        self.on_timeline_during?(param)
       end
     end
 
@@ -245,57 +289,81 @@ module DataMapper
         EOS
       end
 
+      def hideable?
+        @is_hideable || false
+      end
+
       def has_sticky_timeline?
         @sticky_timeline
       end
 
       def is_on_timeline(options = {})
-        property :valid_from, Date, :default => lambda { Date.today }, :auto_validation => false
-        property :valid_to,   Date, :default => repository.adapter.class::END_OF_TIME, :auto_validation => false
+        @is_hideable = options.delete(:hideable) || false
 
-        validates_primitive_type_of :valid_from, :message => lambda {_("Valid from is an invalid date")}
-        validates_primitive_type_of :valid_to, :message => lambda {_("Valid to is an invalid date")}
+        property :timeline_start, Date, :default => (hideable? ? lambda {repository.adapter.class::START_OF_TIME} : lambda { Date.today }), :auto_validation => false
+        property :timeline_end,   Date, :default => repository.adapter.class::END_OF_TIME, :auto_validation => false
+
+        validates_primitive_type_of :timeline_start, :message => lambda {_("Valid from is an invalid date")}
+        validates_primitive_type_of :timeline_start, :message => lambda {_("Valid to is an invalid date")}
 
         include DataMapper::Timeline::InstanceMethods
+        if hideable?
+          include DataMapper::Timeline::HideableInstanceMethods
+        else
+          include DataMapper::Timeline::ValidityInstanceMethods
+        end
         include GetText
 
-        validates_with_method :valid_to, :method => :valid_to_may_not_be_before_valid_from
-        validates_with_method :valid_from, :method => :valid_from_should_make_sense
-        validates_with_method :valid_to, :method => :valid_to_should_make_sense
+        validates_with_method :timeline_end, :method => :timeline_end_may_not_be_before_timeline_start
+        validates_with_method :timeline_start, :method => :timeline_start_should_make_sense
+        validates_with_method :timeline_end, :method => :timeline_end_should_make_sense
 
-        before :valid_from= do |param|
+        if options
+          observes = options.delete(:limited_by)
+          unless observes.nil?
+            observes = [observes] unless observes.kind_of?(Enumerable)
+            observes.each do |observable|
+              timeline_observables << observable
+              create_before_filter(observable)
+            end
+
+            @sticky_timeline = options.delete(:sticky) || false
+          end
+        end
+
+        before :timeline_start= do |param|
           if param.kind_of?(Hash) && param[:date]
             if param[:date].blank?
-              self.valid_from = self.class.repository.adapter.class::START_OF_TIME
+              self.timeline_start = self.class.repository.adapter.class::START_OF_TIME
             else
               date = Timeline::Util.format_date_string(param[:date])
-              self.valid_from = param[:date]
+              self.timeline_start = param[:date]
             end
             throw :halt
           elsif param.is_a?(String)
             param = Timeline::Util.format_date_string(param)
-            attribute_set(:valid_from, param)
+            attribute_set(:timeline_start, param)
             throw :halt
           elsif param.blank?
-            attribute_set(:valid_from, Date.today)
+            attribute_set(:timeline_start, Date.today)
             throw :halt
           end
         end
 
-        before :valid_to= do |param|
+        before :timeline_end= do |param|
           if param.kind_of?(Hash) && param[:date]
             if param[:date].blank?
-              self.valid_to = self.class.repository.adapter.class::END_OF_TIME
+              self.timeline_end = self.class.repository.adapter.class::END_OF_TIME
             else
-              self.valid_to = Timeline::Util.format_date_string(param[:date])
+              self.timeline_end = Timeline::Util.format_date_string(param[:date])
             end
             throw :halt
           elsif param.is_a?(String)
             param = Timeline::Util.format_date_string(param)
-            attribute_set(:valid_to, param)
+            attribute_set(:timeline_end, param)
             throw :halt
           elsif param.blank?
-            attribute_set(:valid_to, self.class.repository.adapter.class::END_OF_TIME)
+            attribute_set(:timeline_end, self.class.repository.adapter.class::END_OF_TIME)
             throw :halt
           end
         end
@@ -317,20 +385,6 @@ module DataMapper
           alias_method :first_without_timeline, :first
           alias_method :first, :first_with_timeline
         end
-
-        if options
-          observes = options.delete(:limited_by)
-          unless observes.nil?
-            observes = [observes] unless observes.kind_of?(Enumerable)
-            observes.each do |observable|
-              timeline_observables << observable
-              create_before_filter(observable)
-            end
-
-            @sticky_timeline = options.delete(:sticky) || false
-          end
-        end
-
       end
     end
 
@@ -366,11 +420,11 @@ module DataMapper
         return {} if conditions.nil?
         conditions = [conditions] unless conditions.respond_to?(:first) && conditions.respond_to?(:last)
         if conditions.length < 2 || (conditions.first && conditions.first == conditions.last)
-          {:valid_from.lte => conditions.last, :valid_to.gt => conditions.first}
+          {:timeline_start.lte => conditions.last, :timeline_end.gt => conditions.first}
         else
           first = conditions.first || repository.adapter.class::START_OF_TIME
           last  = conditions.last  || repository.adapter.class::END_OF_TIME
-          {:valid_from.lt => last, :valid_to.gt => first}
+          {:timeline_start.lt => last, :timeline_end.gt => first}
         end
 
       end
