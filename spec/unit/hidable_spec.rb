@@ -17,7 +17,24 @@ describe "DataMapper::Timeline - Hidable" do
   class Treasure
     include DataMapper::Resource
     include DataMapper::Timeline
+  end
 
+  class Bond
+    include DataMapper::Resource
+    include DataMapper::Timeline
+
+    property :id,           Serial
+    property :name,         String
+    property :treasure_id,  Integer
+
+    belongs_to :treasure
+
+    is_on_timeline :limited_by => :treasure
+    auto_migrate!(:default)
+  end
+
+  class Treasure
+    has n, :bonds
     property :id,     Serial
     property :amount, String
 
@@ -121,6 +138,18 @@ describe "DataMapper::Timeline - Hidable" do
         Treasure.all(:amount => "1245").size.should == 1
 
         Treasure.all(:amount => "1245", :at => Date.today + 1).size.should == 0
+      end
+    end
+
+    context "With respect to limiting timelines" do
+      it "should update the validity of a linked timeline" do
+        treasure = Treasure.create(:amount => "1430")
+        bond = Bond.new(:name => "Greek National Bond", :treasure => treasure)
+
+        treasure.hidden_from = Date.today + 1
+        treasure.save
+
+        bond.valid_to.should == Date.today + 1
       end
     end
   end
