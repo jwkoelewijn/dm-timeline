@@ -53,13 +53,13 @@ describe "DataMapper::Timeline - Hidable" do
     end
 
     it "should define methods from the Hideable instance methods on a hideable resource" do
-      DataMapper::Timeline::HideableInstanceMethods.public_instance_methods.each do |hideable_method|
+      DataMapper::Timeline::Hideable.public_instance_methods.each do |hideable_method|
         Treasure.instance_methods.should include(hideable_method)
       end
     end
 
     it "should not define hideable methods on a non-hideable resource" do
-      DataMapper::Timeline::HideableInstanceMethods.public_instance_methods.each do |hideable_method|
+      DataMapper::Timeline::Hideable.public_instance_methods.each do |hideable_method|
         Stable.instance_methods.should_not include(hideable_method)
       end
     end
@@ -133,11 +133,79 @@ describe "DataMapper::Timeline - Hidable" do
     end
 
     context "With respect to querying" do
+      before :each do
+        Treasure.all.destroy
+      end
+
       it "should not be possible to find a resource that was hidden before the at condition" do
         treasure = Treasure.create(:amount => "1245", :hidden_from => Date.today)
         Treasure.all(:amount => "1245").size.should == 1
 
         Treasure.all(:amount => "1245", :at => Date.today + 1).size.should == 0
+      end
+
+      it "should be possible to use hidden_from in the 'all' query conditions" do
+        treasure1 = Treasure.create(:amount => "1245", :hidden_from => Date.today)
+        treasure2 = Treasure.create(:amount => "5431", :hidden_from => Date.today - 20)
+        treasure3 = Treasure.create(:amount => "4315", :hidden_from => Date.today + 20)
+
+        Treasure.all(:hidden_from => Date.today).size.should == 1
+        Treasure.all(:hidden_from.lt => Date.today).size.should == 1
+        Treasure.all(:hidden_from.gt => Date.today).size.should == 1
+        Treasure.all(:hidden_from.lte => Date.today).size.should == 2
+        Treasure.all(:hidden_from.gte => Date.today).size.should == 2
+      end
+
+      it "should be possible to use hidden_from in the order part of 'all' query conditions" do
+        treasure1 = Treasure.create(:amount => "1245", :hidden_from => Date.today)
+        treasure2 = Treasure.create(:amount => "5431", :hidden_from => Date.today - 20)
+        treasure3 = Treasure.create(:amount => "4315", :hidden_from => Date.today + 20)
+
+        treasures = Treasure.all(:order => [:hidden_from.asc])
+        treasures[0].should == treasure2
+        treasures[1].should == treasure1
+        treasures[2].should == treasure3
+
+        treasures = Treasure.all(:order => [:hidden_from])
+        treasures[0].should == treasure2
+        treasures[1].should == treasure1
+        treasures[2].should == treasure3
+
+        treasures = Treasure.all(:order => [:hidden_from.desc])
+        treasures[0].should == treasure3
+        treasures[1].should == treasure1
+        treasures[2].should == treasure2
+
+        treasures = Treasure.all(:order => [:hidden_from.desc, :id])
+        treasures[0].should == treasure3
+        treasures[1].should == treasure1
+        treasures[2].should == treasure2
+      end
+
+      it "should be possible to use hidden_from in the 'all' query conditions" do
+        treasure1 = Treasure.create(:amount => "1245", :hidden_from => Date.today)
+        treasure2 = Treasure.create(:amount => "5431", :hidden_from => Date.today - 20)
+        treasure3 = Treasure.create(:amount => "4315", :hidden_from => Date.today + 20)
+
+        Treasure.first(:hidden_from => Date.today).should == treasure1
+        Treasure.first(:hidden_from.lt => Date.today).should == treasure2
+        Treasure.first(:hidden_from.gt => Date.today).should == treasure3
+        Treasure.first(:hidden_from.lte => Date.today).should == treasure1
+        Treasure.first(:hidden_from.gte => Date.today).should == treasure1
+      end
+
+      it "should be possible to use hidden_from in the order part of 'all' query conditions" do
+        treasure1 = Treasure.create(:amount => "1245", :hidden_from => Date.today)
+        treasure2 = Treasure.create(:amount => "5431", :hidden_from => Date.today - 20)
+        treasure3 = Treasure.create(:amount => "4315", :hidden_from => Date.today + 20)
+
+        Treasure.first(:order => [:hidden_from.asc]).should == treasure2
+
+        Treasure.first(:order => [:hidden_from]).should == treasure2
+
+        Treasure.first(:order => [:hidden_from.desc]).should == treasure3
+
+        Treasure.first(:order => [:hidden_from.desc, :id]).should == treasure3
       end
     end
 

@@ -4,9 +4,6 @@ module DataMapper
   class Collection
     attr_accessor :timeline
 
-    alias_method :all_without_timeline, :all
-    alias_method :first_without_timeline, :first
-
     def all(query = {})
       if model.respond_to?(:all_without_timeline)
         query_arguments     = query
@@ -16,9 +13,9 @@ module DataMapper
           query_arguments     = query.merge(Timeline::Util.generation_timeline_conditions(conditions))
         end
 
-        all_without_timeline(query_arguments)
+        super(query_arguments)
       else
-        all_without_timeline(query)
+        super
       end
     end
 
@@ -28,9 +25,9 @@ module DataMapper
         conditions       = Timeline::Util.extract_timeline_options(query)
         query_arguments  = Timeline::Util.generation_timeline_conditions(conditions)
 
-        first_without_timeline(*(args << query.merge(query_arguments)))
+        super(*(args << query.merge(query_arguments)))
       else
-        first_without_timeline(*args)
+        super(*args)
       end
 
     end

@@ -205,7 +205,11 @@ module DataMapper
       end
     end
 
-    module HideableInstanceMethods
+    module Hideable
+      def self.included(base)
+        base.extend(ClassMethods)
+      end
+
       def hidden_from=(param)
         self.timeline_end = param
       end
@@ -221,9 +225,19 @@ module DataMapper
       def visible_during?(param)
         self.on_timeline_during?(param)
       end
+
+      module ClassMethods
+        def property_mappings
+          {:hidden_from => :timeline_end}
+        end
+      end
     end
 
-    module ValidityInstanceMethods
+    module Validity
+      def self.included(base)
+        base.extend(ClassMethods)
+      end
+
       def valid_from=(param)
         self.timeline_start = param
       end
@@ -247,28 +261,41 @@ module DataMapper
       def valid_during?(param)
         self.on_timeline_during?(param)
       end
+
+      module ClassMethods
+        def property_mappings
+          {
+            :valid_from => :timeline_start,
+            :valid_to   => :timeline_end
+          }
+        end
+      end
     end
 
     module ClassMethods
-      def all_with_timeline(query = {})
+      def all(query = {})
         query_arguments     = query
+
 
         if query.respond_to?(:has_key?) && !query.has_key?(*self.key)
           conditions          = Timeline::Util.extract_timeline_options(query)
           query_arguments     = query.merge(Timeline::Util.generation_timeline_conditions(conditions))
         end
 
-        all_without_timeline(query_arguments)
+        query_arguments = replace_mapped_attributes(query_arguments)
+
+        super(query_arguments)
       end
 
-      def first_with_timeline(query = nil)
+      def first(query = nil)
         if query.nil?
-          first_without_timeline
+          super
         else
           conditions       = Timeline::Util.extract_timeline_options(query)
           query_arguments  = Timeline::Util.generation_timeline_conditions(conditions)
 
-          first_without_timeline(query.merge(query_arguments))
+          query_arguments = replace_mapped_attributes(query.merge(query_arguments))
+          super(query_arguments)
         end
       end
 
@@ -308,9 +335,9 @@ module DataMapper
 
         include DataMapper::Timeline::InstanceMethods
         if hideable?
-          include DataMapper::Timeline::HideableInstanceMethods
+          include DataMapper::Timeline::Hideable
         else
-          include DataMapper::Timeline::ValidityInstanceMethods
+          include DataMapper::Timeline::Validity
         end
         include GetText
 
@@ -377,14 +404,40 @@ module DataMapper
         before :valid? do
           self.notify_observers
         end
+      end
 
-        class << self
-          alias_method :all_without_timeline, :all
-          alias_method :all, :all_with_timeline
+      private
+      def replace_mapped_attributes(query_arguments)
 
-          alias_method :first_without_timeline, :first
-          alias_method :first, :first_with_timeline
+        self.property_mappings.each do |property, mapped_property|
+          if query_arguments.has_key?(:order)
+            ordering = []
+            ordering_array = query_arguments[:order]
+            ordering_array.each do |ordering_operator|
+              if ordering_operator.respond_to?(:target)
+                ordering_operator.instance_variable_set("@target", mapped_property) if ordering_operator.target == property
+                ordering << ordering_operator
+              else
+                if ordering_operator == property
+                  ordering << mapped_property
+                else
+                  ordering << ordering_operator
+                end
+              end
+            end
+            query_arguments[:order] = ordering
+          end
+
+          if query_arguments.has_key?(property)
+            query_arguments[mapped_property] = query_arguments.delete(property)
+          elsif (arguments = query_arguments.select{|qa, val| qa.respond_to?(:target) && qa.target != :order && qa.target == property}).any?
+            arguments.each do |argument|
+              argument.first.instance_variable_set("@target", mapped_property)
+            end
+          end
         end
+
+        query_arguments
       end
     end
 
