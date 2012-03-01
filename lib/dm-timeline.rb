@@ -408,9 +408,8 @@ module DataMapper
 
       private
       def replace_mapped_attributes(query_arguments)
-
         self.property_mappings.each do |property, mapped_property|
-          if query_arguments.has_key?(:order)
+          if query_arguments.respond_to?(:has_key?) && query_arguments.has_key?(:order)
             ordering = []
             ordering_array = query_arguments[:order]
             ordering_array.each do |ordering_operator|
@@ -428,9 +427,9 @@ module DataMapper
             query_arguments[:order] = ordering
           end
 
-          if query_arguments.has_key?(property)
+          if query_arguments.respond_to?(:has_key?) && query_arguments.has_key?(property)
             query_arguments[mapped_property] = query_arguments.delete(property)
-          elsif (arguments = query_arguments.select{|qa, val| qa.respond_to?(:target) && qa.target != :order && qa.target == property}).any?
+          elsif !query_arguments.is_a?(DataMapper::Query) && (arguments = query_arguments.select{|qa, val| qa.respond_to?(:target) && qa.target != :order && qa.target == property}).any?
             arguments.each do |argument|
               argument.first.instance_variable_set("@target", mapped_property)
             end

@@ -182,7 +182,7 @@ describe "DataMapper::Timeline - Hidable" do
         treasures[2].should == treasure2
       end
 
-      it "should be possible to use hidden_from in the 'all' query conditions" do
+      it "should be possible to use hidden_from in the 'first' query conditions" do
         treasure1 = Treasure.create(:amount => "1245", :hidden_from => Date.today)
         treasure2 = Treasure.create(:amount => "5431", :hidden_from => Date.today - 20)
         treasure3 = Treasure.create(:amount => "4315", :hidden_from => Date.today + 20)
@@ -194,7 +194,7 @@ describe "DataMapper::Timeline - Hidable" do
         Treasure.first(:hidden_from.gte => Date.today).should == treasure1
       end
 
-      it "should be possible to use hidden_from in the order part of 'all' query conditions" do
+      it "should be possible to use hidden_from in the order part of 'first' query conditions" do
         treasure1 = Treasure.create(:amount => "1245", :hidden_from => Date.today)
         treasure2 = Treasure.create(:amount => "5431", :hidden_from => Date.today - 20)
         treasure3 = Treasure.create(:amount => "4315", :hidden_from => Date.today + 20)
@@ -206,6 +206,71 @@ describe "DataMapper::Timeline - Hidable" do
         Treasure.first(:order => [:hidden_from.desc]).should == treasure3
 
         Treasure.first(:order => [:hidden_from.desc, :id]).should == treasure3
+      end
+    end
+
+    context "With respect to querying collections" do
+      before :each do
+        Treasure.all.destroy
+
+        @treasure1 = Treasure.create(:amount => "1", :hidden_from => Date.today + 1)
+        @treasure2 = Treasure.create(:amount => "2", :hidden_from => Date.today + 2)
+        @treasure3 = Treasure.create(:amount => "3", :hidden_from => Date.today + 3)
+
+        @collection = Treasure.all
+        @collection.size.should == 3
+      end
+
+      it "should not be possible to find a resource that was hidden before the at condition" do
+        @collection.all(:amount => "1", :at => Date.today + 2).size.should == 0
+      end
+
+      it "should be possible to use hidden_from in the 'all' query conditions" do
+        @collection.all(:hidden_from => Date.today + 1).size.should == 1
+        @collection.all(:hidden_from.lt => Date.today + 2).size.should == 1
+        @collection.all(:hidden_from.gt => Date.today + 1).size.should == 2
+        @collection.all(:hidden_from.lte => Date.today + 2).size.should == 2
+        @collection.all(:hidden_from.gte => Date.today + 2).size.should == 2
+      end
+
+      it "should be possible to use hidden_from in the order part of 'all' query conditions" do
+        treasures = @collection.all(:order => [:hidden_from.asc])
+        treasures[0].should == @treasure1
+        treasures[1].should == @treasure2
+        treasures[2].should == @treasure3
+
+        treasures = @collection.all(:order => [:hidden_from])
+        treasures[0].should == @treasure1
+        treasures[1].should == @treasure2
+        treasures[2].should == @treasure3
+
+        treasures = @collection.all(:order => [:hidden_from.desc])
+        treasures[0].should == @treasure3
+        treasures[1].should == @treasure2
+        treasures[2].should == @treasure1
+
+        treasures = @collection.all(:order => [:hidden_from.desc, :id])
+        treasures[0].should == @treasure3
+        treasures[1].should == @treasure2
+        treasures[2].should == @treasure1
+      end
+
+      it "should be possible to use hidden_from in the 'first' query conditions" do
+        @collection.first(:hidden_from => Date.today + 1).should == @treasure1
+        @collection.first(:hidden_from.lt => Date.today + 2).should == @treasure1
+        @collection.first(:hidden_from.gt => Date.today + 1).should == @treasure2
+        @collection.first(:hidden_from.lte => Date.today + 2).should == @treasure1
+        @collection.first(:hidden_from.gte => Date.today + 2).should == @treasure2
+      end
+
+      it "should be possible to use hidden_from in the order part of 'first' query conditions" do
+        @collection.first(:order => [:hidden_from.asc]).should == @treasure1
+
+        @collection.first(:order => [:hidden_from]).should == @treasure1
+
+        @collection.first(:order => [:hidden_from.desc]).should == @treasure3
+
+        @collection.first(:order => [:hidden_from.desc, :id]).should == @treasure3
       end
     end
 

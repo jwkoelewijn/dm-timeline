@@ -4,32 +4,26 @@ module DataMapper
   class Collection
     attr_accessor :timeline
 
+    alias_method :first_without_timeline, :first
+
     def all(query = {})
-      if model.respond_to?(:all_without_timeline)
-        query_arguments     = query
-
-        if query.respond_to?(:has_key?) && !query.has_key?(model.key)
-          conditions          = Timeline::Util.extract_timeline_options(query)
-          query_arguments     = query.merge(Timeline::Util.generation_timeline_conditions(conditions))
-        end
-
-        super(query_arguments)
-      else
-        super
-      end
+      super
     end
 
     def first(*args)
-      if model.respond_to?(:first_without_timeline)
+      res = nil
+      if model.respond_to?(:is_on_timeline)
         query            = args.last.respond_to?(:merge) ? args.pop : {}
         conditions       = Timeline::Util.extract_timeline_options(query)
         query_arguments  = Timeline::Util.generation_timeline_conditions(conditions)
 
-        super(*(args << query.merge(query_arguments)))
+        query_arguments = query.merge(query_arguments)
+        query_arguments = model.send(:replace_mapped_attributes, query_arguments)
+        args << query_arguments
+        first_without_timeline(*args)
       else
-        super(*args)
+        first_without_timeline(*args)
       end
-
     end
   end
 end
