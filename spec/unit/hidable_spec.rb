@@ -285,5 +285,40 @@ describe "DataMapper::Timeline - Hidable" do
         bond.valid_to.should == Date.today + 1
       end
     end
+
+    context "With respect to keeping track of original values" do
+      before :each do
+        @treasure = Treasure.create(:amount => "3425234", :hidden_from => Date.today + 10)
+      end
+
+      it "should map timeline_end to hidden_from in the original values hash" do
+        @treasure.hidden_from = Date.today + 3
+        @treasure.original_values.keys.should include :hidden_from
+        @treasure.original_values[:hidden_from].should == Date.today + 10
+      end
+
+      it "should not have timeline_end in the original values hash" do
+        @treasure.hidden_from = Date.today + 3
+        @treasure.original_values.keys.should_not include :timeline_end
+      end
+    end
+
+    context "With respect to validation errors" do
+      before :each do
+        @treasure = Treasure.create(:amount => "3425234", :hidden_from => Date.today + 10)
+      end
+
+      it "should map timeline_end to hidden_from in the errors object" do
+        @treasure.hidden_from = @treasure.timeline_start - 1
+        @treasure.save.should be_false
+        @treasure.errors.keys.should include :hidden_from
+      end
+
+      it "should not have timeline_end in the errors object" do
+        @treasure.hidden_from = @treasure.timeline_start - 1
+        @treasure.save.should be_false
+        @treasure.errors.keys.should_not include :timeline_end
+      end
+    end
   end
 end

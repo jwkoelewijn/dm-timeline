@@ -405,7 +405,7 @@ describe "DataMapper::Timeline chaining" do
   context "Chaining" do
     before :each do
       @stable = Stable.create(:location => "Groenlo", :at => [nil, nil])
-      @cow = StickyObservantCow.create(:stable => @stable, :at => [Date.today - 5, Date.today + 5])
+      @cow = @stable.sticky_observant_cows.create(:stable => @stable, :at => [Date.today - 5, Date.today + 5])
     end
 
     it "should be possible to have a chain of dependent resources" do
@@ -422,7 +422,7 @@ describe "DataMapper::Timeline chaining" do
     end
 
     it "should be possible to have a chain of dependent (sticky) resources" do
-      calf = StickyObservantCalf.create(:sticky_observant_cow => @cow, :at => [Date.today - 4, nil])
+      calf = @cow.sticky_observant_calves.create(:sticky_observant_cow => @cow, :valid_from => Date.today - 4)
       @stable.valid_from = Date.today - 3
       @stable.save.should be_true
 

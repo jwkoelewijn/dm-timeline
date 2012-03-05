@@ -9,8 +9,10 @@ require 'dm-core'
 require 'dm-validations'
 require 'dm-migrations'
 require 'dm-timeline/adapter_extensions'
+require 'dm-timeline/query_extension'
 require 'dm-timeline/collection_extension'
 require 'dm-timeline/resource_extension'
+require 'dm-timeline/validation_extension'
 
 module DataMapper
   module Timeline
@@ -101,16 +103,16 @@ module DataMapper
       end
 
       def original_from
-        if original_values && original_values.has_key?(:timeline_start)
-          original_values[:timeline_start]
+        if original_timeline_start = get_original_value(:timeline_start)
+          original_timeline_start
         else
           @original_timeline ? @original_timeline.first : nil
         end
       end
 
       def original_to
-        if original_values && original_values.has_key?(:timeline_end)
-          original_values[:timeline_end]
+        if original_timeline_end = get_original_value(:timeline_end)
+          original_timeline_end
         else
           @original_timeline ? @original_timeline.last : nil
         end
@@ -161,6 +163,7 @@ module DataMapper
         elsif self.has_sticky_timeline? && (
               (timeline_end == parent.original_to && timeline_end < parent.timeline_end) ||
               (timeline_start == parent.original_from && timeline_start > parent.timeline_start))
+
           self.timeline_start = [self.timeline_start, parent.timeline_start].min
           self.timeline_end   = [self.timeline_end, parent.timeline_end].max
         end
@@ -186,7 +189,7 @@ module DataMapper
       end
 
       def should_notify_observers?
-        (original_values.keys.include?(:timeline_start) || original_values.keys.include?(:timeline_end))
+        (has_original_value(:timeline_start) || has_original_value(:timeline_end))
       end
 
       def notify_observers
@@ -202,6 +205,16 @@ module DataMapper
 
       def has_sticky_timeline?
         self.class.has_sticky_timeline?
+      end
+
+      private
+      def has_original_value(attribute)
+        original_attributes.keys.any?{ |attr| attr.name == attribute}
+      end
+
+      def get_original_value(attribute)
+        property = original_attributes.keys.first{ |attr| attr.name == attribute}
+        property ? original_attributes[property] : nil
       end
     end
 
@@ -409,34 +422,37 @@ module DataMapper
       private
       def replace_mapped_attributes(query_arguments)
         self.property_mappings.each do |property, mapped_property|
-          if query_arguments.respond_to?(:has_key?) && query_arguments.has_key?(:order)
-            ordering = []
-            ordering_array = query_arguments[:order]
-            ordering_array.each do |ordering_operator|
-              if ordering_operator.respond_to?(:target)
-                ordering_operator.instance_variable_set("@target", mapped_property) if ordering_operator.target == property
-                ordering << ordering_operator
-              else
-                if ordering_operator == property
-                  ordering << mapped_property
-                else
+          if query_arguments.is_a?(DataMapper::Query)
+            # fix the order
+          else
+            if query_arguments.respond_to?(:has_key?) && query_arguments.has_key?(:order)
+              ordering = []
+              ordering_array = query_arguments[:order]
+              ordering_array.each do |ordering_operator|
+                if ordering_operator.respond_to?(:target)
+                  ordering_operator.instance_variable_set("@target", mapped_property) if ordering_operator.target == property
                   ordering << ordering_operator
+                else
+                  if ordering_operator == property
+                    ordering << mapped_property
+                  else
+                    ordering << ordering_operator
+                  end
                 end
-              end
+              end if ordering_array
+              query_arguments[:order] = ordering
             end
-            query_arguments[:order] = ordering
-          end
 
-          if query_arguments.respond_to?(:has_key?) && query_arguments.has_key?(property)
-            query_arguments[mapped_property] = query_arguments.delete(property)
-          elsif !query_arguments.is_a?(DataMapper::Query) && (arguments = query_arguments.select{|qa, val| qa.respond_to?(:target) && qa.target != :order && qa.target == property}).any?
-            arguments.each do |argument|
-              argument.first.instance_variable_set("@target", mapped_property)
+            if query_arguments.respond_to?(:has_key?) && query_arguments.has_key?(property)
+              query_arguments[mapped_property] = query_arguments.delete(property)
+            elsif (arguments = query_arguments.select{|qa, val| qa.respond_to?(:target) && qa.target != :order && qa.target == property}).any?
+              arguments.each do |argument|
+                argument.first.instance_variable_set("@target", mapped_property)
+              end
             end
           end
         end
-
-        query_arguments
+          query_arguments
       end
     end
 

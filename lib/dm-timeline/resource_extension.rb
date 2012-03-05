@@ -4,8 +4,15 @@ module DataMapper
   module Resource
     attr_accessor :timeline
 
-    unless method_defined?(:original_values)
-      def original_values
+    def original_values
+      if self.class.respond_to?(:is_on_timeline)
+        inverted_mappings = self.class.property_mappings.invert
+        Hash[original_attributes.map do |key, value|
+          key_name = key.name
+          key_name = inverted_mappings[key_name] if inverted_mappings.has_key?(key_name)
+          [key_name, value]
+        end]
+      else
         Hash[original_attributes.map do |key, value|
           [key.name, value]
         end]

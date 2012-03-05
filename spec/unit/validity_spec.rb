@@ -4,15 +4,52 @@ describe "DataMapper::Timeline - Validity" do
   class Stable
     include DataMapper::Resource
     include DataMapper::Timeline
+  end
+
+  class Cow
+    include DataMapper::Resource
+    include DataMapper::Timeline
+  end
+
+
+  class Calf
+    include DataMapper::Resource
+    include DataMapper::Timeline
 
     property :id,        Serial
-    property :location,  String
-    property :size,      Integer
+    property :name,      String
+    property :cow_id,    Integer
+    belongs_to :cow
 
     is_on_timeline
 
     auto_migrate!(:default)
   end
+
+  class Cow
+    has n, :calves
+    property :id,         Serial
+    property :name,       String
+    property :stable_id,  Integer
+    belongs_to :stable
+
+    is_on_timeline
+
+    auto_migrate!(:default)
+  end
+
+  class Stable
+    has n, :cows
+    property :id,       Serial
+    property :location, String
+    property :size,     Integer
+
+    is_on_timeline
+
+    auto_migrate!(:default)
+  end
+
+  
 
   context "With respect to querying" do
     before :each do
@@ -260,6 +297,73 @@ describe "DataMapper::Timeline - Validity" do
       @collection.first(:order => [:valid_to.desc]).should == @stable3
 
       @collection.first(:order => [:valid_to.desc, :id]).should == @stable3
+    end
+  end
+
+  context "with respect to querying through other object" do
+    before :each do
+      Cow.all.destroy
+      Stable.all.destroy
+      @stable = Stable.create(:location => "Stable 1")
+      @cow1 = @stable.cows.create(:stable => @stable1, :name => "Clara 1")
+      @cow2 = @stable.cows.create(:stable => @stable1, :name => "Clara 2", :valid_from => Date.today + 1)
+      @calf1 = @cow1.calves.create(:cow => @cow1, :name => "Clara's child 1", :valid_from => Date.today + 1)
+      @calf2 = @cow1.calves.create(:cow => @cow1, :name => "Clara's child 2", :valid_from => Date.today + 1)
+    end
+
+    it "should be possible to query 'all' through another object" do
+      @stable.cows.all(:valid_from => Date.today + 1).size.should == 1
+    end
+  end
+
+  context "with respect to keeping track of original values" do
+    before :each do
+      @stable = Stable.create(:location => "Groenlo", :valid_from => Date.today - 5, :valid_to => Date.today + 5)
+    end
+
+    it "should map timeline_start to valid_from in the original values hash" do
+      @stable.valid_from = Date.today - 3
+      @stable.original_values.keys.should include :valid_from
+      @stable.original_values[:valid_from].should == Date.today - 5
+    end
+
+    it "should map timeline_end to valid_to in the original values hash" do
+      @stable.valid_to = Date.today + 3
+      @stable.original_values.keys.should include :valid_to
+      @stable.original_values[:valid_to].should == Date.today + 5
+    end
+
+    it "should not have timeline_start or timeline_end in the original values hash" do
+      @stable.valid_from = Date.today - 3
+      @stable.valid_to   = Date.today + 3
+      @stable.original_values.should_not include :timeline_start
+      @stable.original_values.should_not include :timeline_end
+    end
+  end
+
+  context "with respect to validation errors" do
+    before :each do
+      @stable = Stable.create(:location => "Groenlo", :valid_from => Date.today - 5, :valid_to => Date.today + 5)
+    end
+
+    it "should map timeline_start to valid_from in the errors object" do
+      @stable.valid_from = "0000000"
+      @stable.save.should be_false
+      @stable.errors.keys.should include :valid_from
+    end
+
+    it "should map timeline_end to valid_to in the errors object" do
+      @stable.valid_to = @stable.valid_from - 1
+      @stable.save.should be_false
+      @stable.errors.keys.should include :valid_to
+    end
+
+    it "should not have timeline_start or timeline_end in the errors object" do
+      @stable.valid_to   = "0000000"
+      @stable.valid_from = "0000000"
+      @stable.save.should be_false
+      @stable.errors.keys.should_not include :timeline_start
+      @stable.errors.keys.should_not include :timeline_end
     end
   end
 end
