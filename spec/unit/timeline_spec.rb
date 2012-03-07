@@ -151,6 +151,47 @@ describe "DataMapper::Timeline" do
       end
     end
 
+    context "with respect to creating observer loops" do
+      before :all do
+        class StupidCow
+          include DataMapper::Resource
+          include DataMapper::Timeline
+
+          property :id,             Serial
+          property :name,           String
+          property :stupid_cow_id,  Integer
+
+          belongs_to :stupid_cow
+
+          is_on_timeline :limited_by => :stupid_cow
+
+          auto_migrate!(:default)
+        end
+      end
+
+      it "should not add itself as an observer" do
+        cow = StupidCow.create(:name => "Stupid Cow")
+        cow.stupid_cow = cow
+        cow.timeline_observers.should_not include cow
+      end
+
+      it "should not be possible to create a simple loop" do
+        cow  = StupidCow.create(:name => "Bertha 1")
+        cow2 = StupidCow.create(:name => "Bertha ∞", :stupid_cow => cow)
+        cow.stupid_cow = cow2
+        cow2.timeline_observers.should_not include cow
+      end
+
+      it "should not be possible to create a more complex loop" do
+        cow  = StupidCow.create(:name => "Bertha 1")
+        cow2 = StupidCow.create(:name => "Bertha ∞", :stupid_cow => cow)
+        cow3 = StupidCow.create(:name => "∞ & beyond", :stupid_cow => cow2)
+        cow4 = StupidCow.create(:name => "∞^2", :stupid_cow => cow3)
+        cow.stupid_cow = cow4
+        cow4.timeline_observers.should_not include cow
+      end
+    end
+
     context "interaction between observables and observers" do
       it "an observant resource should register itself as an observer of the observable" do
         stable = Stable.new
@@ -282,6 +323,24 @@ end
         @stable.valid_from.should == Date.today + 6
         @stable.valid_to.should == Date.today + 10
         @cow.should be_destroyed
+      end
+    end
+
+    context "saving" do
+      before :each do
+        @stable = Stable.create(:location => "Groenlo", :at => [nil, nil])
+        @cow1 = ObservantCow.create(:stable => @stable, :at => [Date.today - 5, Date.today + 5])
+        @cow2 = ObservantCow.create(:stable => @stable, :at => [Date.today - 5, Date.today + 5])
+        @cow3 = ObservantCow.create(:stable => @stable, :at => [Date.today - 5, Date.today + 5])
+      end
+
+      it "should save all timeline observers when saved" do
+        @stable.valid_to = Date.today + 2
+        @stable.save
+        @stable.timeline_observers.each do |observer|
+          observer.valid_to.should == @stable.valid_to
+          observer.dirty_attributes.should be_empty
+        end
       end
     end
 

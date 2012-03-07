@@ -41,7 +41,7 @@ module DataMapper
         self.timeline_start = self.class.repository.adapter.class::START_OF_TIME if self.timeline_start.nil? || (self.timeline_start.is_a?(String) && self.timeline_start.blank?)
         self.timeline_end = self.class.repository.adapter.class::END_OF_TIME   if self.timeline_end.nil?   || (self.timeline_end.is_a?(String)   && self.timeline_end.blank?)
 
-        super
+        super && save_timeline_observers
       end
 
       def on_timeline_at?(moment = Date.today)
@@ -81,18 +81,18 @@ module DataMapper
       end
 
       def timeline_start_should_make_sense
-        if self.timeline_start && timeline_start.is_a?(Date) &&
-           timeline_start != self.class.repository.adapter.class::START_OF_TIME &&
-           (timeline_start < Date.civil(1900, 1, 1) || timeline_start >= Date.civil(2100, 1, 1))
+        if self.timeline_start && self.timeline_start.is_a?(Date) &&
+           self.timeline_start != self.class.repository.adapter.class::START_OF_TIME &&
+           (self.timeline_start < Date.civil(1900, 1, 1) || self.timeline_start >= Date.civil(2100, 1, 1))
           return false, _("Start date doesn't make sense as a start date.")
         end
         true
       end
 
       def timeline_end_should_make_sense
-        if self.timeline_end && timeline_start.is_a?(Date) &&
-           timeline_end != self.class.repository.adapter.class::END_OF_TIME &&
-           (timeline_end < Date.civil(1900, 1, 1) || timeline_end >= Date.civil(2100, 1, 1))
+        if self.timeline_end && self.timeline_end.is_a?(Date) &&
+           self.timeline_end != self.class.repository.adapter.class::END_OF_TIME &&
+           (self.timeline_end < Date.civil(1900, 1, 1) || self.timeline_end >= Date.civil(2100, 1, 1))
           return false, _("End date doesn't make sense as an end date.")
         end
         true
@@ -176,7 +176,8 @@ module DataMapper
 
       def register_at_timeline_observables
         self.class.timeline_observables.each do |observable|
-          send(observable).register_observer(self)
+          obs = send(observable)
+          obs.register_observer(self) if obs
         end
       end
 
@@ -185,7 +186,20 @@ module DataMapper
       end
 
       def register_observer(observer)
-        timeline_observers << observer unless timeline_observers.include?(observer)
+        return if would_observer_introduce_loop?(observer) || timeline_observers.include?(observer)
+        timeline_observers << observer
+      end
+
+      def would_observer_introduce_loop?(observer)
+        return true if observer == self || observer.timeline_observers.include?(self)
+        self.class.timeline_observables.inject(false) do |result, observable|
+          observable = send(observable)
+          if observable
+            result ||= observable.would_observer_introduce_loop?(observer)
+          else
+            result ||= false
+          end
+        end
       end
 
       def should_notify_observers?
@@ -208,6 +222,10 @@ module DataMapper
       end
 
       private
+      def save_timeline_observers
+        timeline_observers.inject(true){|val, obs| val &&= obs.save}
+      end
+
       def has_original_value(attribute)
         original_attributes.keys.any?{ |attr| attr.name == attribute}
       end
@@ -324,7 +342,7 @@ module DataMapper
             return if @initializing
             observable = send(:#{observable})
             observable.unregister_observer(self) if observable
-            param.register_observer(self)
+            param.register_observer(self) if param
           end
         EOS
       end
@@ -344,7 +362,7 @@ module DataMapper
         property :timeline_end,   Date, :default => repository.adapter.class::END_OF_TIME, :auto_validation => false
 
         validates_primitive_type_of :timeline_start, :message => lambda {_("Valid from is an invalid date")}
-        validates_primitive_type_of :timeline_start, :message => lambda {_("Valid to is an invalid date")}
+        validates_primitive_type_of :timeline_end, :message => lambda {_("Valid to is an invalid date")}
 
         include DataMapper::Timeline::InstanceMethods
         if hideable?
@@ -410,7 +428,8 @@ module DataMapper
 
         before :destroy do
           self.class.timeline_observables.each do |observable|
-            send(observable).unregister_observer(self)
+            obs = send(observable)
+            obs.unregister_observer(self) if obs
           end
         end
 
