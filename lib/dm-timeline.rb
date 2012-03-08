@@ -41,7 +41,15 @@ module DataMapper
         self.timeline_start = self.class.repository.adapter.class::START_OF_TIME if self.timeline_start.nil? || (self.timeline_start.is_a?(String) && self.timeline_start.blank?)
         self.timeline_end = self.class.repository.adapter.class::END_OF_TIME   if self.timeline_end.nil?   || (self.timeline_end.is_a?(String)   && self.timeline_end.blank?)
 
+        set_original_timeline
         super && save_timeline_observers
+      end
+
+      def set_original_timeline
+        inverted_mapping = self.class.property_mappings.invert
+        mapped_start = inverted_mapping[:timeline_start] || :timeline_start
+        mapped_end   = inverted_mapping[:timeline_end]   || :timeline_end
+        @original_timeline = [original_attributes[mapped_start], original_values[mapped_end]]
       end
 
       def on_timeline_at?(moment = Date.today)
@@ -121,7 +129,10 @@ module DataMapper
       def changed_periods
         return [] unless @original_timeline
         periods = []
-        if deleted_at.nil? && original_from && original_to
+
+        no_deleted_used = !self.class.properties.include?(:deleted_at)
+
+        if (no_deleted_used || deleted_at.nil?) && original_from && original_to
 
           if timeline_start < original_from
             periods << [timeline_start, original_from]

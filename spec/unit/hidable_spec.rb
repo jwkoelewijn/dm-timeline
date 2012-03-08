@@ -43,6 +43,21 @@ describe "DataMapper::Timeline - Hidable" do
     auto_migrate!(:default)
   end
 
+  context "With respect to changed periods" do
+    it "should correctly return the changed period when the hidden_from is changed" do
+      start_of_time = Stable.repository.adapter.class::START_OF_TIME
+      end_of_time   = Stable.repository.adapter.class::END_OF_TIME
+
+      treasure = Treasure.create(:amount => "124531")
+      treasure.save.should be_true
+      treasure.hidden_from.should == end_of_time
+
+      treasure.hidden_from = Date.today + 3
+      treasure.save.should be_true
+      treasure.changed_periods.should == [[start_of_time, Date.today + 3]]
+    end
+  end
+
   context "With regard to setting up" do
     it "should be possible to make a resource hideable" do
       Treasure.should be_hideable

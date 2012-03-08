@@ -49,7 +49,25 @@ describe "DataMapper::Timeline - Validity" do
     auto_migrate!(:default)
   end
 
-  
+  context "With respect to changed periods" do
+    before :each do
+      @start_of_time = Stable.repository.adapter.class::START_OF_TIME
+      @end_of_time   = Stable.repository.adapter.class::END_OF_TIME
+      @stable = Stable.create(:location => "Groenlo", :at => [nil, nil])
+    end
+
+    it "should correctly return the changed period when the valid_to is changed" do
+      @stable.valid_to = Date.today + 3
+      @stable.save.should  be_true
+      @stable.changed_periods.should == [[@start_of_time, Date.today + 3]]
+    end
+
+    it "should correctly return the changed period when the valid_from is changed" do
+      @stable.valid_from = Date.today - 3
+      @stable.save.should  be_true
+      @stable.changed_periods.should == [[Date.today - 3, @end_of_time]]
+    end
+  end
 
   context "With respect to querying" do
     before :each do
