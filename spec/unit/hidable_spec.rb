@@ -54,7 +54,7 @@ describe "DataMapper::Timeline - Hidable" do
 
       treasure.hidden_from = Date.today + 3
       treasure.save.should be_true
-      treasure.changed_periods.should == [[start_of_time, Date.today + 3]]
+      treasure.changed_periods.should == [[Date.today + 3, end_of_time]]
     end
   end
 

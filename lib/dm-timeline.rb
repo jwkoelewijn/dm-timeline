@@ -49,7 +49,9 @@ module DataMapper
         inverted_mapping = self.class.property_mappings.invert
         mapped_start = inverted_mapping[:timeline_start] || :timeline_start
         mapped_end   = inverted_mapping[:timeline_end]   || :timeline_end
-        @original_timeline = [original_attributes[mapped_start], original_values[mapped_end]]
+        original_start = original_values.has_key?(mapped_start) ? original_values[mapped_start] : self.send(mapped_start)
+        original_end   = original_values.has_key?(mapped_end) ? original_values[mapped_end] : self.send(mapped_end)
+        @original_timeline = [original_start, original_end]
       end
 
       def on_timeline_at?(moment = Date.today)

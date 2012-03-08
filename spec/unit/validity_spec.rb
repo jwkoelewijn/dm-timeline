@@ -58,14 +58,21 @@ describe "DataMapper::Timeline - Validity" do
 
     it "should correctly return the changed period when the valid_to is changed" do
       @stable.valid_to = Date.today + 3
-      @stable.save.should  be_true
-      @stable.changed_periods.should == [[@start_of_time, Date.today + 3]]
+      @stable.save.should be_true
+      @stable.changed_periods.should == [[Date.today + 3, @end_of_time]]
     end
 
     it "should correctly return the changed period when the valid_from is changed" do
       @stable.valid_from = Date.today - 3
-      @stable.save.should  be_true
-      @stable.changed_periods.should == [[Date.today - 3, @end_of_time]]
+      @stable.save.should be_true
+      @stable.changed_periods.should == [[@start_of_time, Date.today - 3]]
+    end
+
+    it "should correctly return the changed periods when the valid_from and valid_to are changed" do
+      @stable.valid_from = Date.today - 3
+      @stable.valid_to   = Date.today + 3
+      @stable.save.should be_true
+      @stable.changed_periods.should == [[@start_of_time, Date.today - 3], [Date.today + 3, @end_of_time]]
     end
   end
 
