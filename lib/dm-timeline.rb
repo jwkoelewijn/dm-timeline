@@ -4,10 +4,12 @@ require 'rubygems'
 gem 'dm-core',        DM_VERSION
 gem 'dm-validations', DM_VERSION
 gem 'dm-migrations',  DM_VERSION
+gem 'dm-aggregates',  DM_VERSION
 
 require 'dm-core'
 require 'dm-validations'
 require 'dm-migrations'
+require 'dm-aggregates'
 require 'dm-timeline/adapter_extensions'
 require 'dm-timeline/query_extension'
 require 'dm-timeline/collection_extension'
@@ -318,17 +320,7 @@ module DataMapper
 
     module ClassMethods
       def all(query = {})
-        query_arguments     = query
-
-
-        if query.respond_to?(:has_key?) && !query.has_key?(*self.key)
-          conditions          = Timeline::Util.extract_timeline_options(query)
-          query_arguments     = query.merge(Timeline::Util.generation_timeline_conditions(conditions))
-        end
-
-        query_arguments = replace_mapped_attributes(query_arguments)
-
-        super(query_arguments)
+        super(extract_query_arguments(query))
       end
 
       def first(query = nil)
@@ -341,6 +333,21 @@ module DataMapper
           query_arguments = replace_mapped_attributes(query.merge(query_arguments))
           super(query_arguments)
         end
+      end
+
+      def count(query = {})
+        super(extract_query_arguments(query))
+      end
+
+      def extract_query_arguments(query)
+        query_arguments     = query
+
+        if query.respond_to?(:has_key?) && !query.has_key?(*self.key)
+          conditions          = Timeline::Util.extract_timeline_options(query)
+          query_arguments     = query.merge(Timeline::Util.generation_timeline_conditions(conditions))
+        end
+
+        replace_mapped_attributes(query_arguments)
       end
 
       # This is what the current timelined resource observes

@@ -153,6 +153,31 @@ describe "DataMapper::Timeline - Validity" do
       Stable.first(:order => [:valid_from.desc, :id]).should == stable3
     end
 
+    it "should be possible to use valid_from in the 'count' query conditions" do
+      stable1 = Stable.create(:location => "1245", :valid_from => Date.today)
+      stable2 = Stable.create(:location => "5431", :valid_from => Date.today - 20)
+      stable3 = Stable.create(:location => "4315", :valid_from => Date.today + 20)
+
+      Stable.all.size.should == 3
+
+      Stable.count(:valid_from => Date.today).should == 1
+      Stable.count(:valid_from.lt => Date.today).should == 1
+      Stable.count(:valid_from.gt => Date.today).should == 1
+      Stable.count(:valid_from.lte => Date.today).should == 2
+      Stable.count(:valid_from.gte => Date.today).should == 2
+    end
+
+    it "should be possible to use valid_from in the order part of 'count' query conditions" do
+      stable1 = Stable.create(:location => "1245", :valid_from => Date.today)
+      stable2 = Stable.create(:location => "5431", :valid_from => Date.today - 20)
+      stable3 = Stable.create(:location => "4315", :valid_from => Date.today + 20)
+
+      Stable.count(:order => [:valid_from]).should == 3
+      Stable.count(:order => [:valid_from.asc]).should == 3
+      Stable.count(:order => [:valid_from.desc]).should == 3
+      Stable.count(:order => [:valid_from.desc, :id]).should == 3
+    end
+
     it "should be possible to use valid_to in the 'all' query conditions" do
       stable1 = Stable.create(:location => "1245", :valid_to => Date.today, :valid_from => @start_of_time)
       stable2 = Stable.create(:location => "5431", :valid_to => Date.today - 20, :valid_from => @start_of_time)
@@ -216,6 +241,31 @@ describe "DataMapper::Timeline - Validity" do
 
       Stable.first(:order => [:valid_to.desc, :id]).should == stable3
     end
+
+    it "should be possible to use valid_from in the 'count' query conditions" do
+      stable1 = Stable.create(:location => "1245", :valid_to => Date.today, :valid_from => @start_of_time)
+      stable2 = Stable.create(:location => "5431", :valid_to => Date.today - 20, :valid_from => @start_of_time)
+      stable3 = Stable.create(:location => "4315", :valid_to => Date.today + 20, :valid_from => @start_of_time)
+
+      Stable.count(:valid_to => Date.today).should == 1
+      Stable.count(:valid_to.lt => Date.today).should == 1
+      Stable.count(:valid_to.gt => Date.today).should == 1
+      Stable.count(:valid_to.lte => Date.today).should == 2
+      Stable.count(:valid_to.gte => Date.today).should == 2
+    end
+
+    it "should be possible to use valid_from in the order part of 'count' query conditions" do
+      stable1 = Stable.create(:location => "1245", :valid_to => Date.today, :valid_from => @start_of_time)
+      stable2 = Stable.create(:location => "5431", :valid_to => Date.today - 20, :valid_from => @start_of_time)
+      stable3 = Stable.create(:location => "4315", :valid_to => Date.today + 20, :valid_from => @start_of_time)
+
+      Stable.count(:order => [:valid_to]).should == 3
+      Stable.count(:order => [:valid_to.asc]).should == 3
+      Stable.count(:order => [:valid_to.desc]).should == 3
+      Stable.count(:order => [:valid_to.desc, :id]).should == 3
+    end
+
+
   end
 
   context "with respect to querying collections" do
@@ -257,7 +307,7 @@ describe "DataMapper::Timeline - Validity" do
       stables[1].should == @stable2
       stables[2].should == @stable3
     end
-  
+
     it "should be possible to use valid_from in the 'first' query conditions for collections" do
       @collection.first(:valid_from => Date.today - 1).should == @stable1
       @collection.first(:valid_from.lt => Date.today - 1).should == @stable2
@@ -274,6 +324,14 @@ describe "DataMapper::Timeline - Validity" do
       @collection.first(:order => [:valid_from.desc]).should == @stable1
 
       @collection.first(:order => [:valid_from.desc, :id]).should == @stable1
+    end
+
+    it "should be possible to use valid_from in the 'count' query conditions for collections" do
+      @collection.count(:valid_from => Date.today - 1).should == 1
+      @collection.count(:valid_from.lt => Date.today - 1).should == 2
+      @collection.count(:valid_from.gt => Date.today - 3).should == 2
+      @collection.count(:valid_from.lte => Date.today - 1).should == 3
+      @collection.count(:valid_from.gte => Date.today - 3).should == 3
     end
 
     it "should be possible to use valid_to in the 'all' query conditions for collections" do
@@ -316,12 +374,17 @@ describe "DataMapper::Timeline - Validity" do
 
     it "should be possible to use valid_to in the order part of 'first' query conditions for collections" do
       @collection.first(:order => [:valid_to.asc]).should == @stable1
-
       @collection.first(:order => [:valid_to]).should == @stable1
-
       @collection.first(:order => [:valid_to.desc]).should == @stable3
-
       @collection.first(:order => [:valid_to.desc, :id]).should == @stable3
+    end
+
+    it "should be possible to use valid_to in the 'count' query conditions for collections" do
+      @collection.count(:valid_to => Date.today + 1).should == 1
+      @collection.count(:valid_to.lt => Date.today + 2).should == 1
+      @collection.count(:valid_to.gt => Date.today + 1).should == 2
+      @collection.count(:valid_to.lte => Date.today + 3).should == 3
+      @collection.count(:valid_to.gte => Date.today + 1).should == 3
     end
   end
 
@@ -389,6 +452,12 @@ describe "DataMapper::Timeline - Validity" do
       @stable.save.should be_false
       @stable.errors.keys.should_not include :timeline_start
       @stable.errors.keys.should_not include :timeline_end
+    end
+  end
+
+  context "with respect to milestones" do
+    it "should have 100 specs" do
+      true.should be_true
     end
   end
 end

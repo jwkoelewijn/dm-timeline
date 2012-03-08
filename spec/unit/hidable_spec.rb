@@ -209,6 +209,18 @@ describe "DataMapper::Timeline - Hidable" do
         Treasure.first(:hidden_from.gte => Date.today).should == treasure1
       end
 
+      it "should be possible to use hidden_from in the 'count' query conditions" do
+        treasure1 = Treasure.create(:amount => "1245", :hidden_from => Date.today)
+        treasure2 = Treasure.create(:amount => "5431", :hidden_from => Date.today - 20)
+        treasure3 = Treasure.create(:amount => "4315", :hidden_from => Date.today + 20)
+
+        Treasure.count(:hidden_from => Date.today).should == 1
+        Treasure.count(:hidden_from.lt => Date.today).should == 1
+        Treasure.count(:hidden_from.gt => Date.today).should == 1
+        Treasure.count(:hidden_from.lte => Date.today).should == 2
+        Treasure.count(:hidden_from.gte => Date.today).should == 2
+      end
+
       it "should be possible to use hidden_from in the order part of 'first' query conditions" do
         treasure1 = Treasure.create(:amount => "1245", :hidden_from => Date.today)
         treasure2 = Treasure.create(:amount => "5431", :hidden_from => Date.today - 20)
@@ -222,6 +234,7 @@ describe "DataMapper::Timeline - Hidable" do
 
         Treasure.first(:order => [:hidden_from.desc, :id]).should == treasure3
       end
+
     end
 
     context "With respect to querying collections" do
@@ -276,6 +289,14 @@ describe "DataMapper::Timeline - Hidable" do
         @collection.first(:hidden_from.gt => Date.today + 1).should == @treasure2
         @collection.first(:hidden_from.lte => Date.today + 2).should == @treasure1
         @collection.first(:hidden_from.gte => Date.today + 2).should == @treasure2
+      end
+
+      it "should be possible to use hidden_from in the 'count' query conditions" do
+        @collection.count(:hidden_from => Date.today + 1).should == 1
+        @collection.count(:hidden_from.lt => Date.today + 2).should == 1
+        @collection.count(:hidden_from.gt => Date.today + 1).should == 2
+        @collection.count(:hidden_from.lte => Date.today + 2).should == 2
+        @collection.count(:hidden_from.gte => Date.today + 2).should == 2
       end
 
       it "should be possible to use hidden_from in the order part of 'first' query conditions" do

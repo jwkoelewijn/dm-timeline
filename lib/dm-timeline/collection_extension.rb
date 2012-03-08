@@ -5,13 +5,23 @@ module DataMapper
     attr_accessor :timeline
 
     alias_method :first_without_timeline, :first
+    alias_method :count_without_timeline, :count
 
     def all(query = {})
       super
     end
 
+    def count(*args)
+      args = extract_query_arguments(*args)
+      count_without_timeline(*args)
+    end
+
     def first(*args)
-      res = nil
+      args = extract_query_arguments(*args)
+      first_without_timeline(*args)
+    end
+
+    def extract_query_arguments(*args)
       if model.respond_to?(:is_on_timeline)
         query            = args.last.respond_to?(:merge) ? args.pop : {}
         conditions       = Timeline::Util.extract_timeline_options(query)
@@ -20,10 +30,8 @@ module DataMapper
         query_arguments = query.merge(query_arguments)
         query_arguments = model.send(:replace_mapped_attributes, query_arguments)
         args << query_arguments
-        first_without_timeline(*args)
-      else
-        first_without_timeline(*args)
       end
+      args
     end
   end
 end
