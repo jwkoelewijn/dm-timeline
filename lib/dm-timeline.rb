@@ -222,7 +222,7 @@ module DataMapper
       end
 
       def notify_observers
-        timeline_observers.each do |observer|
+        timeline_observers.dup.each do |observer|
           observer.notify_timeline_change(self) if observer.respond_to?(:notify_timeline_change)
         end if should_notify_observers?
       end

@@ -253,6 +253,20 @@ describe "DataMapper::Timeline" do
         stable.save.should be_true
         cow.notification_count.should == 0
       end
+
+      it "destruction due to a timeline change should not interfere with notifications of other objects" do
+        stable = Stable.new(:location => "Groenlo")
+        stable.save
+        cow1 = ObservantCow.create(:stable => stable, :at => [Date.today + 5, Date.today + 10])
+        cow2 = ObservantCow.create(:stable => stable)
+
+        stable.valid_to = Date.today + 2
+        stable.save
+        cow1.notification_count.should == 1
+        cow1.should be_destroyed
+        cow2.notification_count.should >= 1
+        cow2.valid_to.should == Date.today + 2
+      end
     end
 
     context "updating timelines" do
