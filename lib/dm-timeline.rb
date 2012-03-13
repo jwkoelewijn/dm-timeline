@@ -39,7 +39,7 @@ module DataMapper
         self.register_at_timeline_observables
       end
 
-      def save
+      def save(*args)
         self.timeline_start = self.class.repository.adapter.class::START_OF_TIME if self.timeline_start.nil? || (self.timeline_start.is_a?(String) && self.timeline_start.blank?)
         self.timeline_end = self.class.repository.adapter.class::END_OF_TIME   if self.timeline_end.nil?   || (self.timeline_end.is_a?(String)   && self.timeline_end.blank?)
 
